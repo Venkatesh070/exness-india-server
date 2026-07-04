@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  verified BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at BIGINT NOT NULL,
+  country TEXT NOT NULL DEFAULT 'India',
+  two_fa BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+
+CREATE TABLE IF NOT EXISTS admins (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'admin',
+  permissions JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_admins_email ON admins (email);

@@ -1,0 +1,37 @@
+{
+  "name": "exness-india-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc && cp src/db/schema.sql dist/db/schema.sql",
+    "start": "node dist/index.js",
+    "db:migrate": "tsx src/db/run-migrate.ts",
+    "db:local-setup": "bash scripts/setup-local-postgres.sh",
+    "firebase:check": "node scripts/check-firebase-key.mjs",
+    "seed:admin": "tsx src/db/seed-admin.ts",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "firebase-admin": "^14.1.0",
+    "google-auth-library": "^10.9.0",
+    "pg": "^8.22.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.16.5",
+    "@types/pg": "^8.20.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}
