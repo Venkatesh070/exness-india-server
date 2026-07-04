@@ -38,7 +38,9 @@ export function getFirebaseAuth(): Auth {
 export function getFirebaseWebApiKey(): string {
   const key = process.env.FIREBASE_WEB_API_KEY;
   if (!key) {
-    throw new Error("Missing FIREBASE_WEB_API_KEY in .env (Firebase Web API key for email/password sign-in)");
+    throw new Error(
+      "Missing FIREBASE_WEB_API_KEY. Set it in Render Environment (same value as VITE_FIREBASE_API_KEY in the frontend).",
+    );
   }
   return key;
 }
