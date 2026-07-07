@@ -1,34 +1,30 @@
-import { getPool } from "../config/database.js";
+import { AppUser } from "../models/index.js";
 import type { UserProfile } from "../types/auth.js";
 
-interface UserRow {
-  id: string;
+function rowToProfile(row: {
+  _id: string;
   email: string;
   name: string;
   verified: boolean;
-  created_at: string;
+  createdAt: number;
   country: string;
-  two_fa: boolean;
-}
-
-function rowToProfile(row: UserRow): UserProfile {
+  twoFA: boolean;
+}): UserProfile {
   return {
-    id: row.id,
+    id: row._id,
     email: row.email,
     name: row.name,
     verified: row.verified,
-    createdAt: Number(row.created_at),
+    createdAt: row.createdAt,
     country: row.country,
-    twoFA: row.two_fa,
+    twoFA: row.twoFA,
   };
 }
 
 export async function getUserByEmail(email: string): Promise<UserProfile | null> {
-  const result = await getPool().query<UserRow>("SELECT * FROM users WHERE email = $1", [
-    email.toLowerCase(),
-  ]);
-  if (result.rowCount === 0) return null;
-  return rowToProfile(result.rows[0]!);
+  const doc = await AppUser.findOne({ email: email.toLowerCase() }).lean();
+  if (!doc) return null;
+  return rowToProfile(doc as Parameters<typeof rowToProfile>[0]);
 }
 
 export async function createUserProfile(
@@ -45,11 +41,18 @@ export async function createUserProfile(
     twoFA: false,
   };
 
-  await getPool().query(
-    `INSERT INTO users (id, email, name, verified, created_at, country, two_fa)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     ON CONFLICT (id) DO NOTHING`,
-    [profile.id, profile.email, profile.name, profile.verified, profile.createdAt, profile.country, profile.twoFA],
+  await AppUser.findOneAndUpdate(
+    { _id: uid },
+    {
+      _id: uid,
+      email: profile.email,
+      name: profile.name,
+      verified: profile.verified,
+      createdAt: profile.createdAt,
+      country: profile.country,
+      twoFA: profile.twoFA,
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
   );
 
   const saved = await getUserProfile(uid);
@@ -57,9 +60,9 @@ export async function createUserProfile(
 }
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
-  const result = await getPool().query<UserRow>("SELECT * FROM users WHERE id = $1", [uid]);
-  if (result.rowCount === 0) return null;
-  return rowToProfile(result.rows[0]!);
+  const doc = await AppUser.findById(uid).lean();
+  if (!doc) return null;
+  return rowToProfile(doc as Parameters<typeof rowToProfile>[0]);
 }
 
 async function relinkUserProfile(
@@ -67,17 +70,22 @@ async function relinkUserProfile(
   newUid: string,
   data: { name: string; country?: string },
 ): Promise<UserProfile> {
-  await getPool().query(
-    `UPDATE users
-     SET id = $1, name = $2, country = COALESCE($3, country)
-     WHERE id = $4`,
-    [newUid, data.name, data.country ?? null, oldUid],
-  );
+  const existing = await AppUser.findById(oldUid).lean();
+  if (!existing) throw new Error("User profile not found for relink.");
+
+  await AppUser.deleteOne({ _id: oldUid });
+  await AppUser.create({
+    _id: newUid,
+    email: existing.email,
+    name: data.name,
+    verified: existing.verified,
+    createdAt: existing.createdAt,
+    country: data.country ?? existing.country,
+    twoFA: existing.twoFA,
+  });
 
   const saved = await getUserProfile(newUid);
-  if (!saved) {
-    throw new Error("Failed to relink user profile.");
-  }
+  if (!saved) throw new Error("Failed to relink user profile.");
   return saved;
 }
 
@@ -100,7 +108,7 @@ export async function syncUserProfile(
 }
 
 export async function setUserVerified(uid: string, verified: boolean): Promise<UserProfile | null> {
-  await getPool().query("UPDATE users SET verified = $1 WHERE id = $2", [verified, uid]);
+  await AppUser.findByIdAndUpdate(uid, { verified });
   return getUserProfile(uid);
 }
 

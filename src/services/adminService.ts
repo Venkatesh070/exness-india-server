@@ -1,17 +1,15 @@
-import { getPool } from "../config/database.js";
+import { Admin } from "../models/index.js";
 import type { AdminProfile } from "../types/auth.js";
 
-interface AdminRow {
-  id: string;
+function rowToProfile(row: {
+  _id: string;
   email: string;
   name: string;
   role: string;
   permissions: string[];
-}
-
-function rowToProfile(row: AdminRow): AdminProfile {
+}): AdminProfile {
   return {
-    id: row.id,
+    id: row._id,
     email: row.email,
     name: row.name,
     role: row.role,
@@ -20,19 +18,39 @@ function rowToProfile(row: AdminRow): AdminProfile {
 }
 
 export async function getAdminProfile(uid: string): Promise<AdminProfile | null> {
-  const result = await getPool().query<AdminRow>("SELECT * FROM admins WHERE id = $1", [uid]);
-  if (result.rowCount === 0) return null;
-  return rowToProfile(result.rows[0]!);
+  const doc = await Admin.findById(uid).lean();
+  if (!doc) return null;
+  return rowToProfile(doc as Parameters<typeof rowToProfile>[0]);
 }
 
 export async function isAdmin(uid: string): Promise<boolean> {
-  const result = await getPool().query("SELECT 1 FROM admins WHERE id = $1", [uid]);
-  return (result.rowCount ?? 0) > 0;
+  const doc = await Admin.exists({ _id: uid });
+  return doc !== null;
 }
 
 export async function resolveAdminProfile(uid: string, email: string): Promise<AdminProfile> {
   const fromDb = await getAdminProfile(uid);
   if (fromDb) return fromDb;
-
   throw new Error("NOT_ADMIN");
+}
+
+export async function upsertAdminProfile(data: {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  permissions: string[];
+}): Promise<AdminProfile> {
+  const doc = await Admin.findOneAndUpdate(
+    { _id: data.id },
+    {
+      _id: data.id,
+      email: data.email.toLowerCase(),
+      name: data.name,
+      role: data.role,
+      permissions: data.permissions,
+    },
+    { upsert: true, new: true, lean: true, setDefaultsOnInsert: true },
+  );
+  return rowToProfile(doc as Parameters<typeof rowToProfile>[0]);
 }

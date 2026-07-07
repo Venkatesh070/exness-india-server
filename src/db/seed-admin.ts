@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { closePool, getPool } from "../config/database.js";
+import { disconnectDatabase, connectDatabase } from "../config/database.js";
 import { getFirebaseAuth } from "../config/firebase.js";
 
 interface FirebaseAuthResponse {
@@ -53,6 +53,8 @@ async function seedAdmin() {
 
   console.log(`Creating admin: ${email}`);
 
+  await connectDatabase();
+
   const uid = await getOrCreateFirebaseUser(email, password);
   console.log(`Firebase UID: ${uid}`);
 
@@ -63,18 +65,16 @@ async function seedAdmin() {
     console.warn("Could not mark admin email verified (check Firebase Admin credentials):", err);
   }
 
-  await getPool().query(
-    `INSERT INTO admins (id, email, name, role, permissions)
-     VALUES ($1, $2, $3, $4, $5::jsonb)
-     ON CONFLICT (id) DO UPDATE SET
-       email = EXCLUDED.email,
-       name = EXCLUDED.name,
-       role = EXCLUDED.role,
-       permissions = EXCLUDED.permissions`,
-    [uid, email.toLowerCase(), name, "super_admin", JSON.stringify(["*"])],
-  );
+  const { upsertAdminProfile } = await import("../services/adminService.js");
+  await upsertAdminProfile({
+    id: uid,
+    email: email.toLowerCase(),
+    name,
+    role: "super_admin",
+    permissions: ["*"],
+  });
 
-  console.log("Admin record saved to PostgreSQL.");
+  console.log("Admin record saved to MongoDB.");
   console.log("\nLogin at: http://localhost:8080/admin/login");
   console.log(`Email:    ${email}`);
   console.log(`Password: ${password}`);
@@ -86,5 +86,5 @@ seedAdmin()
     process.exit(1);
   })
   .finally(async () => {
-    await closePool();
+    await disconnectDatabase();
   });

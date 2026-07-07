@@ -6,11 +6,13 @@ import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
 import { env } from "./config/env.js";
 import { buildSwaggerSpec } from "./swagger/spec.js";
-import { prisma } from "./config/database.js";
+import { checkDatabaseConnection } from "./config/database.js";
 import { getEmailConfigStatus } from "./services/email.service.js";
 import { authRoutes, profileRoutes, kycRoutes, bankRoutes } from "./routes/index.js";
+import firebaseAuthRoutes from "./routes/authRoutes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import { notFound } from "./middlewares/validate.js";
+import { runMigrations } from "./db/migrate.js";
 
 const swaggerSpec = buildSwaggerSpec(env.PORT);
 
@@ -30,8 +32,8 @@ app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", async (_req, res) => {
   const email = getEmailConfigStatus();
-  try {
-    await prisma.$queryRaw`SELECT 1`;
+  const dbOk = await checkDatabaseConnection();
+  if (dbOk) {
     res.json({
       status: "ok",
       service: "exness-india-server",
@@ -39,12 +41,17 @@ app.get("/health", async (_req, res) => {
       email: email.configured ? "configured" : "missing",
       ...(email.missing.length > 0 ? { missingEmailEnv: email.missing } : {}),
     });
-  } catch {
-    res.status(503).json({ status: "degraded", database: "disconnected", email: email.configured ? "configured" : "missing" });
+  } else {
+    res.status(503).json({
+      status: "degraded",
+      database: "disconnected",
+      email: email.configured ? "configured" : "missing",
+    });
   }
 });
 
 app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use("/api/auth", firebaseAuthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/kyc", kycRoutes);
@@ -55,8 +62,8 @@ app.use(errorHandler);
 
 async function start() {
   try {
-    await prisma.$connect();
-    console.log("PostgreSQL connected via Prisma");
+    await runMigrations();
+    console.log("MongoDB connected and indexes ensured");
   } catch (err) {
     console.error("Database connection failed:", err);
     process.exit(1);

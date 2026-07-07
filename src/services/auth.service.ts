@@ -27,6 +27,7 @@ import type {
   loginSchema,
   profileSchema,
   kycPanSchema,
+  kycAadhaarSchema,
   bankAccountSchema,
 } from "../validators/auth.validator.js";
 
@@ -59,14 +60,20 @@ export async function sendOtp(input: z.infer<typeof sendOtpSchema>) {
     throw new AppError(409, "Email already registered");
   }
 
-  await otpRepo.invalidateOld(input.email);
+  await otpRepo.invalidateOld(input.email, "register");
 
   const otp = generateOtp();
   const otpHash = await hashOtp(otp);
   const passwordEnc = encrypt(input.password);
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
-  await otpRepo.create({ email: input.email, otpHash, passwordEnc, expiresAt });
+  await otpRepo.create({
+    email: input.email,
+    purpose: "register",
+    otpHash,
+    passwordEnc,
+    expiresAt,
+  });
   const emailResult = await sendOtpEmail(input.email, otp);
 
   return {
@@ -79,7 +86,7 @@ export async function sendOtp(input: z.infer<typeof sendOtpSchema>) {
 }
 
 export async function verifyOtp(input: z.infer<typeof verifyOtpSchema>) {
-  const record = await otpRepo.findLatest(input.email);
+  const record = await otpRepo.findLatest(input.email, "register");
   if (!record) throw new AppError(400, "No OTP found. Please request a new one.");
   if (record.verified) throw new AppError(400, "OTP already used");
   if (record.expiresAt < new Date()) throw new AppError(400, "OTP expired");
@@ -102,16 +109,11 @@ export async function verifyOtp(input: z.infer<typeof verifyOtpSchema>) {
 
   let user;
   if (existing) {
-    const { prisma } = await import("../config/database.js");
-    user = await prisma.user.update({
-      where: { id: existing.id },
-      data: {
-        passwordHash,
-        firebaseUid,
-        emailVerified: true,
-        status: "ACTIVE",
-      },
-      include: { profile: true, kyc: true },
+    user = await userRepo.update(existing.id, {
+      passwordHash,
+      firebaseUid,
+      emailVerified: true,
+      status: "ACTIVE",
     });
   } else {
     user = await userRepo.create({
@@ -245,25 +247,21 @@ export async function verifyBankAccount(userId: string, accountId: string) {
   const account = accounts.find((a) => a.id === accountId);
   if (!account) throw new AppError(404, "Bank account not found");
 
-  return prismaBankVerify(account.id);
-}
-
-async function prismaBankVerify(id: string) {
-  const { prisma } = await import("../config/database.js");
-  return prisma.bankAccount.update({ where: { id }, data: { verified: true } });
+  return bankRepo.verifyById(account.id);
 }
 
 export async function resendOtp(email: string) {
-  const record = await otpRepo.findLatest(email);
+  const record = await otpRepo.findLatest(email, "register");
   if (!record) throw new AppError(400, "No pending registration found");
 
   const otp = generateOtp();
   const otpHash = await hashOtp(otp);
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
-  await otpRepo.invalidateOld(email);
+  await otpRepo.invalidateOld(email, "register");
   await otpRepo.create({
     email,
+    purpose: "register",
     otpHash,
     passwordEnc: record.passwordEnc,
     expiresAt,

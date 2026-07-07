@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../utils/jwt.js";
 import { AppError } from "../utils/errors.js";
-import { prisma } from "../config/database.js";
+import { AuthUser } from "../models/index.js";
 
 export interface AuthRequest extends Request {
   user?: { id: string; email: string; role: "user" | "admin" };
@@ -17,12 +17,12 @@ export async function authenticate(req: AuthRequest, _res: Response, next: NextF
     const token = header.slice(7);
     const payload = verifyAccessToken(token);
 
-    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+    const user = await AuthUser.findById(payload.sub).lean();
     if (!user || user.status === "SUSPENDED") {
       throw new AppError(401, "Invalid or suspended account");
     }
 
-    req.user = { id: user.id, email: user.email, role: payload.role };
+    req.user = { id: user._id, email: user.email, role: payload.role };
     next();
   } catch (err) {
     if (err instanceof AppError) return next(err);

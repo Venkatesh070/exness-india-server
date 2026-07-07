@@ -8,8 +8,7 @@ Set these in **Render → your service → Environment**:
 
 | Variable | Required | Example |
 |----------|----------|---------|
-| `DATABASE_URL` | Yes | From Render PostgreSQL (Internal URL) |
-| `DATABASE_SSL` | Yes (Render Postgres) | `true` |
+| `MONGODB_URI` | Yes | `mongodb+srv://user:pass@cluster.mongodb.net/exness_india` |
 | `FIREBASE_PROJECT_ID` | Yes | `exness-india` |
 | `FIREBASE_WEB_API_KEY` | Yes | Same as `VITE_FIREBASE_API_KEY` in frontend |
 | `FRONTEND_URL` | Yes | `https://exness-india-server.onrender.com` |
@@ -22,6 +21,9 @@ Check deployment health: `GET /health` — if `missingEnv` includes `FIREBASE_WE
 
 ```bash
 cp .env.example .env
+# Set MONGODB_URI in .env
 npm install
+npm run db:migrate
+npm run db:seed-admin   # optional — creates admin in Firebase + MongoDB
 npm run dev
 ```

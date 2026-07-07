@@ -1,47 +1,19 @@
 import type { Request, Response } from "express";
-import type { FirebaseSignInResponse } from "../types/auth.js";
-import {
-  FirebaseAuthServiceError,
-  sendVerificationEmail,
-  signInWithPassword,
-  signUpWithPassword,
-  toAuthTokens,
-} from "../services/firebaseAuth.js";
 import {
   getOrCreateUserProfile,
   setUserVerified,
   syncUserProfile,
 } from "../services/userService.js";
+import * as userOtpAuth from "../services/userOtpAuth.service.js";
+import { isAppError } from "../utils/errors.js";
 
-function verificationContinueUrl(email: string): string {
-  const base = process.env.FRONTEND_URL ?? "http://localhost:8080";
-  return `${base.replace(/\/$/, "")}/verify?email=${encodeURIComponent(email)}`;
-}
-
-function isPgUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code: string }).code === "23505"
-  );
-}
-
-function handleAuthError(res: Response, err: unknown): void {
-  if (err instanceof FirebaseAuthServiceError) {
-    res.status(err.status).json({ error: err.message });
-    return;
-  }
-  if (isPgUniqueViolation(err)) {
-    res.status(409).json({ error: "An account with that email already exists." });
+function handleError(res: Response, err: unknown, fallback = "Request failed."): void {
+  if (isAppError(err)) {
+    res.status(err.statusCode).json({ error: err.message });
     return;
   }
   console.error("User auth error:", err);
-  res.status(500).json({ error: "Registration failed." });
-}
-
-async function sendVerificationOrWarn(email: string, idToken: string): Promise<void> {
-  await sendVerificationEmail(idToken, verificationContinueUrl(email));
+  res.status(500).json({ error: fallback });
 }
 
 export async function register(req: Request, res: Response): Promise<void> {
@@ -58,57 +30,144 @@ export async function register(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    let auth: FirebaseSignInResponse;
-    let created = true;
-
-    try {
-      auth = await signUpWithPassword(email, password);
-    } catch (err) {
-      if (err instanceof FirebaseAuthServiceError && err.status === 409) {
-        auth = await signInWithPassword(email, password);
-        created = false;
-      } else {
-        throw err;
-      }
-    }
-
-    const user = await syncUserProfile(auth.localId, {
-      email: auth.email,
+    const result = await userOtpAuth.startRegister({
+      email,
+      password,
       name: name.trim(),
       country,
     });
-
-    res.status(created ? 201 : 200).json({
-      user,
-      tokens: toAuthTokens(auth),
-      message: created ? "Account created." : "Signed in.",
-    });
+    res.status(200).json(result);
   } catch (err) {
-    handleAuthError(res, err);
+    handleError(res, err, "Registration failed.");
   }
 }
 
-export async function resendVerification(req: Request, res: Response): Promise<void> {
-  if (!req.auth?.email) {
-    res.status(401).json({ error: "Authentication required." });
-    return;
-  }
+export async function verifyRegisterOtp(req: Request, res: Response): Promise<void> {
+  const { email, otp } = req.body as { email?: string; otp?: string };
 
-  const header = req.headers.authorization;
-  const idToken = header?.startsWith("Bearer ") ? header.slice(7) : "";
-
-  if (!idToken) {
-    res.status(401).json({ error: "Missing token." });
+  if (!email || !otp) {
+    res.status(400).json({ error: "email and otp are required." });
     return;
   }
 
   try {
-    await sendVerificationOrWarn(req.auth.email, idToken);
-    res.json({ message: "Verification email sent." });
+    const result = await userOtpAuth.verifyRegisterOtp({ email, otp });
+    res.status(201).json({
+      user: result.user,
+      customToken: result.customToken,
+      tokens: result.tokens,
+      message: "Account created successfully.",
+    });
   } catch (err) {
-    console.error("Verification email error:", err);
-    handleAuthError(res, err);
+    handleError(res, err, "Verification failed.");
   }
+}
+
+export async function resendRegisterOtp(req: Request, res: Response): Promise<void> {
+  const { email } = req.body as { email?: string };
+
+  if (!email) {
+    res.status(400).json({ error: "email is required." });
+    return;
+  }
+
+  try {
+    const result = await userOtpAuth.resendRegisterOtp(email);
+    res.json(result);
+  } catch (err) {
+    handleError(res, err, "Failed to resend code.");
+  }
+}
+
+export async function registerOtpResendStatus(req: Request, res: Response): Promise<void> {
+  const email = typeof req.query.email === "string" ? req.query.email : "";
+
+  if (!email) {
+    res.status(400).json({ error: "email query parameter is required." });
+    return;
+  }
+
+  try {
+    const result = await userOtpAuth.getRegisterOtpResend(email);
+    res.json(result);
+  } catch (err) {
+    handleError(res, err);
+  }
+}
+
+export async function login(req: Request, res: Response): Promise<void> {
+  const { email, password } = req.body as { email?: string; password?: string };
+
+  if (!email || !password) {
+    res.status(400).json({ error: "email and password are required." });
+    return;
+  }
+
+  try {
+    const result = await userOtpAuth.startLogin({ email, password });
+    res.json(result);
+  } catch (err) {
+    handleError(res, err, "Sign in failed.");
+  }
+}
+
+export async function verifyLoginOtp(req: Request, res: Response): Promise<void> {
+  const { email, otp } = req.body as { email?: string; otp?: string };
+
+  if (!email || !otp) {
+    res.status(400).json({ error: "email and otp are required." });
+    return;
+  }
+
+  try {
+    const result = await userOtpAuth.verifyLoginOtp({ email, otp });
+    res.json({
+      user: result.user,
+      customToken: result.customToken,
+      tokens: result.tokens,
+      message: "Signed in successfully.",
+    });
+  } catch (err) {
+    handleError(res, err, "Verification failed.");
+  }
+}
+
+export async function resendLoginOtp(req: Request, res: Response): Promise<void> {
+  const { email } = req.body as { email?: string };
+
+  if (!email) {
+    res.status(400).json({ error: "email is required." });
+    return;
+  }
+
+  try {
+    const result = await userOtpAuth.resendLoginOtp(email);
+    res.json(result);
+  } catch (err) {
+    handleError(res, err, "Failed to resend code.");
+  }
+}
+
+export async function loginOtpResendStatus(req: Request, res: Response): Promise<void> {
+  const email = typeof req.query.email === "string" ? req.query.email : "";
+
+  if (!email) {
+    res.status(400).json({ error: "email query parameter is required." });
+    return;
+  }
+
+  try {
+    const result = await userOtpAuth.getLoginOtpResend(email);
+    res.json(result);
+  } catch (err) {
+    handleError(res, err);
+  }
+}
+
+export async function resendVerification(req: Request, res: Response): Promise<void> {
+  res.status(410).json({
+    error: "Email link verification is no longer used. Sign in again to receive an OTP code.",
+  });
 }
 
 export async function sync(req: Request, res: Response): Promise<void> {
@@ -144,9 +203,7 @@ export async function verifyEmail(req: Request, res: Response): Promise<void> {
   }
 
   if (!req.auth.emailVerified) {
-    res.status(400).json({
-      error: "Email is not verified yet. Check your inbox and click the verification link.",
-    });
+    res.status(400).json({ error: "Email is not verified yet." });
     return;
   }
 
