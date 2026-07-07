@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { closePool, getPool } from "../config/database.js";
+import { getFirebaseAuth } from "../config/firebase.js";
 
 interface FirebaseAuthResponse {
   localId?: string;
@@ -54,6 +55,13 @@ async function seedAdmin() {
 
   const uid = await getOrCreateFirebaseUser(email, password);
   console.log(`Firebase UID: ${uid}`);
+
+  try {
+    await getFirebaseAuth().updateUser(uid, { emailVerified: true });
+    console.log("Admin email marked as verified in Firebase.");
+  } catch (err) {
+    console.warn("Could not mark admin email verified (check Firebase Admin credentials):", err);
+  }
 
   await getPool().query(
     `INSERT INTO admins (id, email, name, role, permissions)

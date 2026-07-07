@@ -1,24 +1,39 @@
-export interface EnvCheck {
-  ok: boolean;
-  missing: string[];
-}
+import { z } from "zod";
 
-const REQUIRED_VARS = ["DATABASE_URL", "FIREBASE_PROJECT_ID", "FIREBASE_WEB_API_KEY"] as const;
+const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  PORT: z.coerce.number().default(4000),
+  FRONTEND_URL: z.string().url().default("http://localhost:3000"),
+  DATABASE_URL: z.string().min(1),
+  JWT_ACCESS_SECRET: z.string().min(32),
+  JWT_REFRESH_SECRET: z.string().min(32),
+  ENCRYPTION_KEY: z.string().min(32),
+  FIREBASE_PROJECT_ID: z.string().min(1),
+  FIREBASE_CLIENT_EMAIL: z.string().optional(),
+  FIREBASE_PRIVATE_KEY: z.string().optional(),
+  BREVO_SMTP_HOST: z.string().default("smtp-relay.brevo.com"),
+  BREVO_SMTP_PORT: z.coerce.number().default(587),
+  BREVO_SMTP_USER: z.string().optional(),
+  BREVO_SMTP_PASS: z.string().optional(),
+  BREVO_API_KEY: z.string().optional(),
+  BREVO_FROM_EMAIL: z.string().email().optional(),
+  BREVO_FROM_NAME: z.string().default("Exness India"),
+  REDIS_URL: z.string().optional(),
+  AWS_REGION: z.string().default("ap-south-1"),
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  AWS_S3_BUCKET: z.string().optional(),
+});
 
-export function checkRequiredEnv(): EnvCheck {
-  const missing = REQUIRED_VARS.filter((key) => !process.env[key]?.trim());
-  return { ok: missing.length === 0, missing: [...missing] };
-}
+export type Env = z.infer<typeof envSchema>;
 
-export function logEnvStatus(): void {
-  const { ok, missing } = checkRequiredEnv();
-  if (ok) {
-    console.log("Environment: all required variables set");
-    return;
+function loadEnv(): Env {
+  const parsed = envSchema.safeParse(process.env);
+  if (!parsed.success) {
+    console.error("Invalid environment variables:", parsed.error.flatten().fieldErrors);
+    throw new Error("Environment validation failed");
   }
-  console.error("Environment: missing required variables:", missing.join(", "));
-  console.error("Set these in Render → Environment (or local .env):");
-  for (const key of missing) {
-    console.error(`  - ${key}`);
-  }
+  return parsed.data;
 }
+
+export const env = loadEnv();

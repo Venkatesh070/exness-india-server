@@ -1,38 +1,12 @@
-import pg from "pg";
+import { PrismaClient } from "@prisma/client";
+import { env } from "./env.js";
 
-const { Pool } = pg;
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-let pool: pg.Pool | undefined;
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+  });
 
-export function getPool(): pg.Pool {
-  if (!pool) {
-    const connectionString = process.env.DATABASE_URL;
-    if (!connectionString) {
-      throw new Error("Missing DATABASE_URL in .env");
-    }
-
-    pool = new Pool({
-      connectionString,
-      ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: false } : undefined,
-    });
-  }
-
-  return pool;
-}
-
-export async function checkDatabaseConnection(): Promise<boolean> {
-  const client = await getPool().connect();
-  try {
-    await client.query("SELECT 1");
-    return true;
-  } finally {
-    client.release();
-  }
-}
-
-export async function closePool(): Promise<void> {
-  if (pool) {
-    await pool.end();
-    pool = undefined;
-  }
-}
+if (env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
