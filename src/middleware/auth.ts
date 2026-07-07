@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { isAdmin } from "../services/adminService.js";
 import { verifyFirebaseToken } from "../services/tokenVerifier.js";
+import { verifyAccessToken } from "../utils/jwt.js";
 import type { DecodedToken } from "../types/auth.js";
 
 declare global {
@@ -19,6 +20,20 @@ export async function verifyToken(req: Request, res: Response, next: NextFunctio
   }
 
   const token = header.slice(7);
+
+  try {
+    const payload = verifyAccessToken(token);
+    req.auth = {
+      uid: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      emailVerified: true,
+    };
+    next();
+    return;
+  } catch {
+    // Not a JWT access token — try Firebase ID token
+  }
 
   try {
     const decoded = await verifyFirebaseToken(token);

@@ -4,6 +4,7 @@ import { Schema, model, type InferSchemaType } from "mongoose";
 const appUserSchema = new Schema(
   {
     _id: { type: String, required: true },
+    accountId: { type: String, unique: true, sparse: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     name: { type: String, required: true },
     verified: { type: Boolean, default: false },

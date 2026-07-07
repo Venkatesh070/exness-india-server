@@ -118,9 +118,9 @@ export async function sendOtpEmail(to: string, otp: string): Promise<EmailSendRe
     throw new AppError(503, "BREVO_FROM_EMAIL is not configured");
   }
 
-  const subject = "Verify your Email";
+  const subject = "Your one-time verification code";
   const html = otpEmailHtml(otp);
-  const text = `Your verification code is ${otp}. Expires in 5 minutes.`;
+  const text = `Dear Valued Client,\n\nYour one-time verification code (OTP) is: ${otp}\n\nThis code is valid for a single verification. Never share your verification code with anyone.\n\nKind Regards,\nThe Exness India Team`;
 
   if (env.BREVO_API_KEY) {
     try {

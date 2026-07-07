@@ -5,12 +5,28 @@ import {
   syncUserProfile,
 } from "../services/userService.js";
 import * as userOtpAuth from "../services/userOtpAuth.service.js";
+import {
+  refreshUserAccessToken,
+  revokeUserRefreshToken,
+} from "../services/userToken.service.js";
+import { FirebaseAuthServiceError } from "../services/firebaseAuth.js";
 import { isAppError } from "../utils/errors.js";
 
 function handleError(res: Response, err: unknown, fallback = "Request failed."): void {
   if (isAppError(err)) {
     res.status(err.statusCode).json({ error: err.message });
     return;
+  }
+  if (err instanceof FirebaseAuthServiceError) {
+    res.status(err.status).json({ error: err.message });
+    return;
+  }
+  if (err instanceof Error) {
+    console.error("User auth error:", err);
+    if (err.message.includes("FIREBASE_WEB_API_KEY") || err.message.includes("Firebase Admin")) {
+      res.status(503).json({ error: err.message });
+      return;
+    }
   }
   console.error("User auth error:", err);
   res.status(500).json({ error: fallback });
@@ -56,6 +72,8 @@ export async function verifyRegisterOtp(req: Request, res: Response): Promise<vo
       user: result.user,
       customToken: result.customToken,
       tokens: result.tokens,
+      accessToken: result.apiTokens.accessToken,
+      refreshToken: result.apiTokens.refreshToken,
       message: "Account created successfully.",
     });
   } catch (err) {
@@ -125,6 +143,8 @@ export async function verifyLoginOtp(req: Request, res: Response): Promise<void>
       user: result.user,
       customToken: result.customToken,
       tokens: result.tokens,
+      accessToken: result.apiTokens.accessToken,
+      refreshToken: result.apiTokens.refreshToken,
       message: "Signed in successfully.",
     });
   } catch (err) {
@@ -161,6 +181,38 @@ export async function loginOtpResendStatus(req: Request, res: Response): Promise
     res.json(result);
   } catch (err) {
     handleError(res, err);
+  }
+}
+
+export async function refresh(req: Request, res: Response): Promise<void> {
+  const { refreshToken } = req.body as { refreshToken?: string };
+
+  if (!refreshToken) {
+    res.status(400).json({ error: "refreshToken is required." });
+    return;
+  }
+
+  try {
+    const result = await refreshUserAccessToken(refreshToken);
+    res.json(result);
+  } catch (err) {
+    handleError(res, err, "Failed to refresh session.");
+  }
+}
+
+export async function logout(req: Request, res: Response): Promise<void> {
+  const { refreshToken } = req.body as { refreshToken?: string };
+
+  if (!refreshToken) {
+    res.status(400).json({ error: "refreshToken is required." });
+    return;
+  }
+
+  try {
+    await revokeUserRefreshToken(refreshToken);
+    res.json({ message: "Signed out successfully." });
+  } catch (err) {
+    handleError(res, err, "Failed to sign out.");
   }
 }
 

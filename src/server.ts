@@ -10,6 +10,12 @@ import { checkDatabaseConnection } from "./config/database.js";
 import { getEmailConfigStatus } from "./services/email.service.js";
 import { authRoutes, profileRoutes, kycRoutes, bankRoutes } from "./routes/index.js";
 import firebaseAuthRoutes from "./routes/authRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
+import adminUsersRoutes from "./routes/adminUsersRoutes.js";
+import adminDepositsRoutes from "./routes/adminDepositsRoutes.js";
+import adminNewsRoutes from "./routes/adminNewsRoutes.js";
+import walletRoutes from "./routes/walletRoutes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import { notFound } from "./middlewares/validate.js";
 import { runMigrations } from "./db/migrate.js";
@@ -28,7 +34,7 @@ app.use(
   }),
 );
 app.use(cookieParser());
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "5mb" }));
 
 app.get("/health", async (_req, res) => {
   const email = getEmailConfigStatus();
@@ -56,6 +62,12 @@ app.use("/api/auth", authRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/kyc", kycRoutes);
 app.use("/api/bank", bankRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/admin/dashboard", adminRoutes);
+app.use("/api/admin/users", adminUsersRoutes);
+app.use("/api/admin/deposits", adminDepositsRoutes);
+app.use("/api/admin/news", adminNewsRoutes);
+app.use("/api/wallet", walletRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

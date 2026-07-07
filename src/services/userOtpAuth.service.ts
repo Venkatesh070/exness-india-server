@@ -17,6 +17,7 @@ import { encrypt, decrypt, generateOtp } from "../utils/crypto.js";
 import { hashOtp, verifyOtp as verifyOtpHash } from "../utils/password.js";
 import { AppError } from "../utils/errors.js";
 import type { AuthTokens, UserProfile } from "../types/auth.js";
+import { issueUserTokens, type UserApiTokens } from "./userToken.service.js";
 
 const OTP_EXPIRY_MINUTES = 5;
 const MAX_OTP_ATTEMPTS = 5;
@@ -99,7 +100,7 @@ async function verifyOtpRecord(email: string, otp: string, purpose: OtpPurpose) 
     throw new AppError(400, "No verification code found. Please request a new one.");
   }
   if (record.verified) {
-    throw new AppError(400, "Verification code already used.");
+    throw new AppError(400, "Verification code already used. Please request a new one.");
   }
   if (record.expiresAt < new Date()) {
     throw new AppError(400, "Verification code expired. Please request a new one.");
@@ -114,7 +115,6 @@ async function verifyOtpRecord(email: string, otp: string, purpose: OtpPurpose) 
     throw new AppError(400, "Invalid verification code.");
   }
 
-  await otpRepo.markVerified(record.id);
   return record;
 }
 
@@ -144,7 +144,12 @@ export async function startRegister(input: {
 export async function verifyRegisterOtp(input: {
   email: string;
   otp: string;
-}): Promise<{ user: UserProfile; customToken: string; tokens: AuthTokens }> {
+}): Promise<{
+  user: UserProfile;
+  customToken: string;
+  tokens: AuthTokens;
+  apiTokens: UserApiTokens;
+}> {
   const email = normalizeEmail(input.email);
   const record = await verifyOtpRecord(email, input.otp, "register");
 
@@ -169,8 +174,11 @@ export async function verifyRegisterOtp(input: {
 
   const customToken = await getFirebaseAuth().createCustomToken(auth.localId);
   const tokens = toAuthTokens(auth);
+  const apiTokens = await issueUserTokens(auth.localId, email);
 
-  return { user, customToken, tokens };
+  await otpRepo.markVerified(record.id);
+
+  return { user, customToken, tokens, apiTokens };
 }
 
 export async function resendRegisterOtp(emailInput: string) {
@@ -217,7 +225,12 @@ export async function startLogin(input: { email: string; password: string }) {
 export async function verifyLoginOtp(input: {
   email: string;
   otp: string;
-}): Promise<{ user: UserProfile; customToken: string; tokens: AuthTokens }> {
+}): Promise<{
+  user: UserProfile;
+  customToken: string;
+  tokens: AuthTokens;
+  apiTokens: UserApiTokens;
+}> {
   const email = normalizeEmail(input.email);
   const record = await verifyOtpRecord(email, input.otp, "login");
 
@@ -233,8 +246,11 @@ export async function verifyLoginOtp(input: {
 
   const customToken = await getFirebaseAuth().createCustomToken(auth.localId);
   const tokens = toAuthTokens(auth);
+  const apiTokens = await issueUserTokens(auth.localId, email);
 
-  return { user, customToken, tokens };
+  await otpRepo.markVerified(record.id);
+
+  return { user, customToken, tokens, apiTokens };
 }
 
 export async function resendLoginOtp(emailInput: string) {

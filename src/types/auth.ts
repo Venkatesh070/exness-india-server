@@ -1,5 +1,6 @@
 export interface UserProfile {
   id: string;
+  accountId: string;
   email: string;
   name: string;
   verified: boolean;

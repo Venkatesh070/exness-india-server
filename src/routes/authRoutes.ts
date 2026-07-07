@@ -14,6 +14,8 @@ router.post("/user/login", userAuth.login);
 router.post("/user/verify-login-otp", userAuth.verifyLoginOtp);
 router.post("/user/resend-login-otp", userAuth.resendLoginOtp);
 router.get("/user/login-otp-resend", userAuth.loginOtpResendStatus);
+router.post("/user/refresh", userAuth.refresh);
+router.post("/user/logout", userAuth.logout);
 router.post("/user/resend-verification", verifyToken, userAuth.resendVerification);
 router.post("/user/sync", verifyToken, userAuth.sync);
 router.post("/user/verify-email", verifyToken, userAuth.verifyEmail);
