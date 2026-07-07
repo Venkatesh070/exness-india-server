@@ -91,7 +91,7 @@ export const bankController = {
   },
 
   verify: async (req: AuthRequest, res: Response) => {
-    const account = await authService.verifyBankAccount(req.user!.id, req.params.id);
+    const account = await authService.verifyBankAccount(req.user!.id, String(req.params.id));
     res.json({ success: true, account });
   },
 };
