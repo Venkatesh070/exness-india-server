@@ -242,13 +242,12 @@ export async function approveDepositRequest(
   const wallet = await getOrCreateWallet(doc.userId);
   let credited = false;
 
-  wallet.transactions = wallet.transactions.map((txn) => {
+  for (const txn of wallet.transactions) {
     if (txn.depositRequestId === requestId) {
       credited = true;
-      return { ...txn, status: "Completed" as const };
+      txn.status = "Completed";
     }
-    return txn;
-  });
+  }
 
   if (!credited) {
     wallet.transactions.unshift({
@@ -286,9 +285,11 @@ export async function rejectDepositRequest(
 
   const wallet = await UserWallet.findOne({ userId: doc.userId });
   if (wallet) {
-    wallet.transactions = wallet.transactions.map((txn) =>
-      txn.depositRequestId === requestId ? { ...txn, status: "Rejected" as const } : txn,
-    );
+    for (const txn of wallet.transactions) {
+      if (txn.depositRequestId === requestId) {
+        txn.status = "Rejected";
+      }
+    }
     await wallet.save();
   }
 
@@ -449,9 +450,11 @@ export async function approveWithdrawalRequest(
 
   const wallet = await UserWallet.findOne({ userId: doc.userId });
   if (wallet) {
-    wallet.transactions = wallet.transactions.map((txn) =>
-      txn.id === doc.transactionId ? { ...txn, status: "Completed" as const } : txn,
-    );
+    for (const txn of wallet.transactions) {
+      if (txn.id === doc.transactionId) {
+        txn.status = "Completed";
+      }
+    }
     await wallet.save();
   }
 
@@ -474,9 +477,11 @@ export async function rejectWithdrawalRequest(
 
   const wallet = await UserWallet.findOne({ userId: doc.userId });
   if (wallet) {
-    wallet.transactions = wallet.transactions.map((txn) =>
-      txn.id === doc.transactionId ? { ...txn, status: "Rejected" as const } : txn,
-    );
+    for (const txn of wallet.transactions) {
+      if (txn.id === doc.transactionId) {
+        txn.status = "Rejected";
+      }
+    }
     wallet.balance = (wallet.balance ?? 0) + doc.amount;
     await wallet.save();
   }

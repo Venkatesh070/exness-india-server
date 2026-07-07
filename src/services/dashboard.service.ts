@@ -17,19 +17,15 @@ function marketPriceMap(): Record<string, number> {
 }
 
 async function getOrCreateWallet(userId: string) {
-  let doc = await UserWallet.findOne({ userId }).lean();
-  if (!doc) {
-    doc = (await UserWallet.create({ userId, balance: 0, transactions: [] })).toObject();
-  }
-  return doc;
+  const existing = await UserWallet.findOne({ userId }).lean();
+  if (existing) return existing;
+  return (await UserWallet.create({ userId, balance: 0, transactions: [] })).toObject();
 }
 
 async function getOrCreateTrading(userId: string) {
-  let doc = await UserTrading.findOne({ userId }).lean();
-  if (!doc) {
-    doc = (await UserTrading.create({ userId, open: [], closed: [] })).toObject();
-  }
-  return doc;
+  const existing = await UserTrading.findOne({ userId }).lean();
+  if (existing) return existing;
+  return (await UserTrading.create({ userId, open: [], closed: [] })).toObject();
 }
 
 export async function getDashboardSummary(userId: string) {
