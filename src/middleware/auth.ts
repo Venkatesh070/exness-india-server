@@ -48,7 +48,11 @@ export async function verifyToken(req: Request, res: Response, next: NextFunctio
     console.error("Token verification failed:", err);
     const detail = err instanceof Error ? err.message : "Invalid or expired token.";
     const message =
-      process.env.NODE_ENV === "development" ? detail : "Invalid or expired token.";
+      detail === "INVALID_ID_TOKEN" || detail.includes("ID token")
+        ? "Invalid or expired token."
+        : process.env.NODE_ENV === "development"
+          ? detail
+          : "Invalid or expired token.";
     res.status(401).json({ error: message });
   }
 }

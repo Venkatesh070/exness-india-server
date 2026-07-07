@@ -45,6 +45,7 @@ app.get("/health", async (_req, res) => {
       service: "exness-india-server",
       database: "connected",
       email: email.configured ? "configured" : "missing",
+      emailProvider: email.provider ?? null,
       ...(email.missing.length > 0 ? { missingEmailEnv: email.missing } : {}),
     });
   } else {

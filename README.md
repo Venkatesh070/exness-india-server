@@ -11,7 +11,9 @@ Set these in **Render → your service → Environment**:
 | `MONGODB_URI` | Yes | `mongodb+srv://user:pass@cluster.mongodb.net/exness_india` |
 | `FIREBASE_PROJECT_ID` | Yes | `exness-india` |
 | `FIREBASE_WEB_API_KEY` | Yes | Same as `VITE_FIREBASE_API_KEY` in frontend |
-| `FRONTEND_URL` | Yes | `https://exness-india-server.onrender.com` |
+| `FRONTEND_URL` | Yes | `https://your-frontend-domain.com` |
+| `RESEND_API_KEY` | Yes | Resend API key (`re_...`) for OTP emails |
+| `RESEND_FROM_EMAIL` | Yes | Verified sender in Resend (e.g. `noreply@exness-india.com`) |
 
 `FIREBASE_WEB_API_KEY` must match the Web API key from Firebase Console → Project settings → Your apps.
 
